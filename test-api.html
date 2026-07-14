@@ -1,0 +1,291 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Test API NHL — Pool de hockey</title>
+<style>
+  :root {
+    --fond: #0b1420;
+    --carte: #14263d;
+    --bord: #2a3f57;
+    --texte: #e8eef4;
+    --doux: #92a8bf;
+    --bleu: #4d9fff;
+    --vert: #4ade80;
+    --rouge: #f87171;
+    --jaune: #ffd166;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
+    background: var(--fond);
+    color: var(--texte);
+    padding: 24px 16px 60px;
+    line-height: 1.5;
+  }
+  .page { max-width: 780px; margin: 0 auto; }
+
+  h1 {
+    font-size: 26px;
+    letter-spacing: -0.5px;
+    margin-bottom: 6px;
+  }
+  .sous {
+    color: var(--doux);
+    font-size: 14px;
+    margin-bottom: 24px;
+  }
+
+  .test {
+    background: var(--carte);
+    border: 1px solid var(--bord);
+    border-radius: 10px;
+    padding: 16px 18px;
+    margin-bottom: 14px;
+  }
+  .test-titre {
+    font-size: 15px;
+    font-weight: 600;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 4px;
+  }
+  .test-url {
+    font-family: ui-monospace, "SF Mono", Menlo, monospace;
+    font-size: 12px;
+    color: var(--doux);
+    word-break: break-all;
+    margin-bottom: 10px;
+  }
+  .badge {
+    font-size: 11px;
+    font-weight: 700;
+    padding: 3px 8px;
+    border-radius: 20px;
+    letter-spacing: 0.5px;
+  }
+  .attente { background: #1e3350; color: var(--doux); }
+  .ok      { background: rgba(74,222,128,0.15); color: var(--vert); }
+  .echec   { background: rgba(248,113,113,0.15); color: var(--rouge); }
+
+  .resultat {
+    font-family: ui-monospace, "SF Mono", Menlo, monospace;
+    font-size: 12px;
+    background: #0a1522;
+    border: 1px solid var(--bord);
+    border-radius: 6px;
+    padding: 10px 12px;
+    margin-top: 10px;
+    max-height: 220px;
+    overflow: auto;
+    white-space: pre-wrap;
+    color: var(--doux);
+  }
+  .resultat.bon { color: var(--texte); }
+
+  .verdict {
+    margin-top: 28px;
+    padding: 20px;
+    border-radius: 10px;
+    border: 2px solid var(--bord);
+    background: var(--carte);
+  }
+  .verdict h2 { font-size: 18px; margin-bottom: 8px; }
+  .verdict p { color: var(--doux); font-size: 14px; }
+  .verdict.reussi { border-color: var(--vert); }
+  .verdict.rate   { border-color: var(--rouge); }
+
+  table { width: 100%; border-collapse: collapse; margin-top: 10px; font-size: 13px; }
+  th {
+    text-align: left; color: var(--doux); font-weight: 600;
+    font-size: 11px; letter-spacing: 1px; text-transform: uppercase;
+    padding: 6px 8px; border-bottom: 1px solid var(--bord);
+  }
+  td { padding: 7px 8px; border-bottom: 1px solid rgba(42,63,87,0.4); }
+  td.pts { color: var(--jaune); font-weight: 700; text-align: right; }
+  td.num { text-align: right; color: var(--doux); }
+  tr:last-child td { border-bottom: none; }
+
+  button {
+    font-family: inherit; font-size: 14px; font-weight: 600;
+    padding: 10px 20px; border-radius: 8px;
+    border: 2px solid var(--bleu); background: rgba(77,159,255,0.1);
+    color: var(--bleu); cursor: pointer; margin-top: 16px;
+  }
+  button:hover { background: rgba(77,159,255,0.2); }
+</style>
+</head>
+<body>
+<div class="page">
+
+  <h1>🏒 Test de l'API NHL</h1>
+  <p class="sous">
+    Cette page vérifie si ton site peut aller chercher les vraies stats NHL
+    directement depuis le navigateur. C'est la fondation du pool : si ça marche,
+    on peut bâtir. Sinon, on saura quel contournement utiliser.
+  </p>
+
+  <div id="tests"></div>
+
+  <div id="verdict" class="verdict">
+    <h2>⏳ Tests en cours…</h2>
+    <p>Attends quelques secondes.</p>
+  </div>
+
+  <button onclick="location.reload()">↻ Relancer les tests</button>
+
+</div>
+
+<script>
+/* Les tests qu'on fait, du plus important au moins important.
+   Le but : savoir si le navigateur peut appeler l'API NHL (le CORS)
+   et si les données dont on a besoin pour un pool sont accessibles. */
+const TESTS = [
+  {
+    id: 'meneurs',
+    titre: 'Meneurs de la ligue (points)',
+    pourquoi: "C'est LA donnée du pool : qui marque des points.",
+    url: 'https://api-web.nhle.com/v1/skater-stats-leaders/current?categories=points&limit=10',
+    afficher: (d) => {
+      const liste = d.points || [];
+      if (!liste.length) return null;
+      let html = '<table><tr><th>Joueur</th><th>Équipe</th><th style="text-align:right">Points</th></tr>';
+      for (const j of liste) {
+        const nom = (j.firstName?.default || '') + ' ' + (j.lastName?.default || '');
+        html += `<tr><td>${nom}</td><td class="num">${j.teamAbbrev || '—'}</td><td class="pts">${j.value}</td></tr>`;
+      }
+      return html + '</table>';
+    }
+  },
+  {
+    id: 'calendrier',
+    titre: "Calendrier / matchs du jour",
+    pourquoi: "Pour savoir quels matchs jouent et mettre à jour les points.",
+    url: 'https://api-web.nhle.com/v1/score/now',
+    afficher: (d) => {
+      const games = d.games || [];
+      if (!games.length) return '<div class="resultat bon">Aucun match aujourd\'hui (hors-saison?), mais la connexion fonctionne.</div>';
+      let html = '<table><tr><th>Match</th><th style="text-align:right">Pointage</th></tr>';
+      for (const g of games.slice(0, 8)) {
+        html += `<tr><td>${g.awayTeam?.abbrev} @ ${g.homeTeam?.abbrev}</td>` +
+                `<td class="pts">${g.awayTeam?.score ?? '-'} – ${g.homeTeam?.score ?? '-'}</td></tr>`;
+      }
+      return html + '</table>';
+    }
+  },
+  {
+    id: 'roster',
+    titre: "Alignement d'une équipe (Montréal)",
+    pourquoi: "Pour lister les joueurs qu'on peut drafter dans le pool.",
+    url: 'https://api-web.nhle.com/v1/roster/MTL/current',
+    afficher: (d) => {
+      const tous = [...(d.forwards||[]), ...(d.defensemen||[]), ...(d.goalies||[])];
+      if (!tous.length) return null;
+      let html = `<table><tr><th>Joueur</th><th>Pos</th><th style="text-align:right">#</th></tr>`;
+      for (const j of tous.slice(0, 8)) {
+        const nom = (j.firstName?.default || '') + ' ' + (j.lastName?.default || '');
+        html += `<tr><td>${nom}</td><td class="num">${j.positionCode}</td><td class="num">${j.sweaterNumber ?? ''}</td></tr>`;
+      }
+      html += '</table>';
+      html += `<div class="resultat bon">${tous.length} joueurs trouvés au total.</div>`;
+      return html;
+    }
+  },
+  {
+    id: 'classement',
+    titre: 'Classement de la ligue',
+    pourquoi: "Bonus : pour afficher le contexte des équipes.",
+    url: 'https://api-web.nhle.com/v1/standings/now',
+    afficher: (d) => {
+      const eq = d.standings || [];
+      if (!eq.length) return null;
+      let html = '<table><tr><th>Équipe</th><th class="num">PJ</th><th style="text-align:right">PTS</th></tr>';
+      for (const e of eq.slice(0, 6)) {
+        html += `<tr><td>${e.teamName?.default}</td><td class="num">${e.gamesPlayed}</td><td class="pts">${e.points}</td></tr>`;
+      }
+      return html + '</table>';
+    }
+  }
+];
+
+const zone = document.getElementById('tests');
+const resultats = {};
+
+// Construire les cartes de test
+for (const t of TESTS) {
+  const div = document.createElement('div');
+  div.className = 'test';
+  div.innerHTML = `
+    <div class="test-titre">
+      <span>${t.titre}</span>
+      <span class="badge attente" id="badge-${t.id}">EN COURS</span>
+    </div>
+    <div class="test-url">${t.url}</div>
+    <div style="font-size:13px;color:var(--doux);margin-bottom:4px">${t.pourquoi}</div>
+    <div id="sortie-${t.id}"></div>
+  `;
+  zone.appendChild(div);
+}
+
+// Lancer chaque test
+async function lancer(t) {
+  const badge = document.getElementById('badge-' + t.id);
+  const sortie = document.getElementById('sortie-' + t.id);
+  try {
+    const rep = await fetch(t.url);
+    if (!rep.ok) throw new Error('Statut HTTP ' + rep.status);
+    const data = await rep.json();
+    const html = t.afficher(data);
+    badge.className = 'badge ok';
+    badge.textContent = '✓ ÇA MARCHE';
+    sortie.innerHTML = html || '<div class="resultat bon">Réponse reçue, mais format inattendu.</div>';
+    resultats[t.id] = true;
+  } catch (err) {
+    badge.className = 'badge echec';
+    badge.textContent = '✕ BLOQUÉ';
+    const msg = String(err);
+    const estCors = msg.includes('Failed to fetch') || msg.includes('NetworkError') || msg.includes('CORS');
+    sortie.innerHTML = `<div class="resultat">${msg}${
+      estCors ? "\n\n→ C'est probablement le CORS : le navigateur refuse l'appel.\n   Solution : passer par un petit relais (proxy)." : ''
+    }</div>`;
+    resultats[t.id] = false;
+  }
+  majVerdict();
+}
+
+function majVerdict() {
+  const faits = Object.keys(resultats).length;
+  if (faits < TESTS.length) return;
+
+  const v = document.getElementById('verdict');
+  const reussis = Object.values(resultats).filter(Boolean).length;
+
+  if (reussis === TESTS.length) {
+    v.className = 'verdict reussi';
+    v.innerHTML = `
+      <h2 style="color:var(--vert)">✓ Le pool est faisable</h2>
+      <p>Les ${TESTS.length} appels fonctionnent depuis ton navigateur. On peut aller chercher
+      les vrais joueurs, les vraies stats et les vrais matchs directement — pas besoin de serveur
+      pour ça. La prochaine étape : bâtir la sélection des joueurs et le calcul des points.</p>`;
+  } else if (reussis > 0) {
+    v.className = 'verdict';
+    v.innerHTML = `
+      <h2 style="color:var(--jaune)">⚠ Partiellement</h2>
+      <p>${reussis} appel(s) sur ${TESTS.length} fonctionnent. On peut travailler avec ça,
+      mais faudra contourner pour les autres. Envoie-moi une capture d'écran de cette page.</p>`;
+  } else {
+    v.className = 'verdict rate';
+    v.innerHTML = `
+      <h2 style="color:var(--rouge)">✕ Le navigateur bloque les appels</h2>
+      <p>Aucun appel passe — c'est le CORS. C'est pas la fin du projet : on peut passer par un
+      petit relais gratuit (un « proxy ») qui va chercher les données pour nous.
+      Envoie-moi une capture d'écran et je te bâtis le contournement.</p>`;
+  }
+}
+
+TESTS.forEach(lancer);
+</script>
+</body>
+</html>
