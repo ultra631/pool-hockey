@@ -1,0 +1,362 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>La Ligue du Garage — Le pool de hockey NHL avec les vraies stats</title>
+<meta name="description" content="Choisis tes vrais joueurs NHL. Leurs vraies performances font tes points, chaque soir de match. Gratuit, simple, pas besoin d'être un expert.">
+<style>
+  :root {
+    --fond: #080c16;
+    --carte: #131c31;
+    --boite: #0a101f;
+    --texte: #e6edf8;
+    --texte-doux: #8fa3c4;
+    --vert: #3ddc84;
+    --neon: #ff5c39;        /* l'orange néon de l'enseigne du garage */
+    --glace: #6fc3ff;       /* bleu glace pour les accents */
+    --or: #ffd166;
+    --bordure: #23304e;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html { scroll-behavior: smooth; }
+  body {
+    background: var(--fond);
+    color: var(--texte);
+    font-family: "Segoe UI", system-ui, sans-serif;
+    line-height: 1.5;
+    overflow-x: hidden;
+  }
+  .contenu { max-width: 960px; margin: 0 auto; padding: 0 20px; }
+
+  /* ============================================================
+     LE HERO : l'enseigne néon du garage
+     ============================================================ */
+  .hero {
+    position: relative;
+    text-align: center;
+    padding: 90px 0 60px;
+    /* Une lueur froide de patinoire qui monte du bas */
+    background:
+      radial-gradient(ellipse 90% 55% at 50% 115%, rgba(111,195,255,0.10), transparent),
+      radial-gradient(ellipse 60% 40% at 50% -10%, rgba(255,92,57,0.08), transparent);
+  }
+  /* Les deux lignes de patinoire : la bleue et la rouge */
+  .hero::after {
+    content: "";
+    display: block;
+    max-width: 960px;
+    margin: 56px auto 0;
+    height: 8px;
+    border-top: 3px solid rgba(111,195,255,0.45);
+    border-bottom: 3px solid rgba(255,80,80,0.45);
+  }
+  .eyebrow {
+    display: inline-block;
+    color: var(--glace);
+    border: 1px solid rgba(111,195,255,0.35);
+    border-radius: 20px;
+    padding: 5px 16px;
+    font-size: 0.78rem;
+    font-weight: 700;
+    letter-spacing: 3px;
+    text-transform: uppercase;
+    margin-bottom: 26px;
+  }
+  h1 {
+    font-size: clamp(2.6rem, 9vw, 5rem);
+    font-weight: 900;
+    line-height: 1.05;
+    letter-spacing: -1px;
+    margin-bottom: 8px;
+  }
+  /* L'enseigne néon : "du Garage" brille comme un vrai néon
+     de garage, avec un petit grésillement à l'arrivée. */
+  .neon {
+    color: var(--neon);
+    text-shadow:
+      0 0 6px rgba(255,92,57,0.8),
+      0 0 20px rgba(255,92,57,0.55),
+      0 0 48px rgba(255,92,57,0.35);
+    animation: gresille 3.2s ease-in 1;
+  }
+  @keyframes gresille {
+    0%, 12%, 18%, 26% { opacity: 0.25; text-shadow: none; }
+    8%, 15%, 22%, 100% {
+      opacity: 1;
+      text-shadow:
+        0 0 6px rgba(255,92,57,0.8),
+        0 0 20px rgba(255,92,57,0.55),
+        0 0 48px rgba(255,92,57,0.35);
+    }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .neon { animation: none; }
+    .defile-piste { animation: none !important; }
+  }
+  .accroche {
+    color: var(--texte-doux);
+    font-size: clamp(1.05rem, 2.5vw, 1.3rem);
+    max-width: 620px;
+    margin: 18px auto 34px;
+  }
+  .accroche strong { color: var(--texte); }
+
+  .boutons-hero { display: flex; gap: 14px; justify-content: center; flex-wrap: wrap; }
+  .cta {
+    display: inline-block;
+    text-decoration: none;
+    font-weight: 800;
+    font-size: 1.05rem;
+    padding: 16px 34px;
+    border-radius: 10px;
+    transition: transform 0.15s, box-shadow 0.15s;
+  }
+  .cta.principal {
+    background: var(--vert);
+    color: #06210f;
+    box-shadow: 0 0 24px rgba(61,220,132,0.35);
+  }
+  .cta.principal:hover { transform: translateY(-2px); box-shadow: 0 0 38px rgba(61,220,132,0.55); }
+  .cta.secondaire {
+    color: var(--texte);
+    border: 1px solid var(--bordure);
+  }
+  .cta.secondaire:hover { border-color: var(--glace); }
+  .gratuit { color: var(--texte-doux); font-size: 0.85rem; margin-top: 14px; }
+
+  /* ============================================================
+     LE TICKER EN DIRECT : les vrais meneurs NHL qui défilent.
+     C'est la preuve, dès l'accueil, que le pool roule sur du vrai.
+     ============================================================ */
+  .ticker {
+    border-bottom: 1px solid var(--bordure);
+    background: var(--boite);
+    overflow: hidden;
+    display: none; /* apparaît seulement si les données arrivent */
+  }
+  .ticker.actif { display: block; }
+  .ticker-interieur { display: flex; align-items: center; }
+  .ticker-etiquette {
+    flex-shrink: 0;
+    background: var(--neon);
+    color: #2a0a00;
+    font-weight: 800;
+    font-size: 0.75rem;
+    letter-spacing: 1.5px;
+    text-transform: uppercase;
+    padding: 10px 16px;
+  }
+  .piste { overflow: hidden; flex: 1; }
+  .defile-piste {
+    display: inline-flex;
+    white-space: nowrap;
+    animation: defile 30s linear infinite;
+  }
+  .defile-piste span {
+    padding: 10px 26px;
+    color: var(--texte-doux);
+    font-size: 0.9rem;
+    font-variant-numeric: tabular-nums;
+  }
+  .defile-piste b { color: var(--texte); font-weight: 700; }
+  .defile-piste .pts { color: var(--vert); font-weight: 800; }
+  @keyframes defile {
+    from { transform: translateX(0); }
+    to { transform: translateX(-50%); }
+  }
+
+  /* ============================================================
+     LES CHIFFRES DE SCOREBOARD
+     ============================================================ */
+  .scoreboard {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 14px;
+    padding: 44px 0;
+  }
+  @media (max-width: 620px) { .scoreboard { grid-template-columns: 1fr; } }
+  .score {
+    background: var(--carte);
+    border: 1px solid var(--bordure);
+    border-radius: 12px;
+    padding: 22px;
+    text-align: center;
+  }
+  .score .gros {
+    font-size: 2.4rem;
+    font-weight: 900;
+    color: var(--glace);
+    font-variant-numeric: tabular-nums;
+    line-height: 1.1;
+  }
+  .score .petit { color: var(--texte-doux); font-size: 0.9rem; margin-top: 4px; }
+
+  /* ============================================================
+     COMMENT ÇA MARCHE : en 3 périodes, comme un match
+     ============================================================ */
+  .section-titre {
+    text-align: center;
+    font-size: clamp(1.5rem, 4vw, 2rem);
+    font-weight: 800;
+    margin-bottom: 8px;
+  }
+  .section-sous-titre { text-align: center; color: var(--texte-doux); margin-bottom: 30px; }
+  .periodes { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; padding-bottom: 50px; }
+  @media (max-width: 720px) { .periodes { grid-template-columns: 1fr; } }
+  .periode {
+    background: var(--carte);
+    border: 1px solid var(--bordure);
+    border-radius: 12px;
+    padding: 24px;
+    position: relative;
+  }
+  .periode .badge-periode {
+    display: inline-block;
+    background: rgba(111,195,255,0.12);
+    color: var(--glace);
+    font-weight: 800;
+    font-size: 0.8rem;
+    letter-spacing: 1px;
+    padding: 4px 12px;
+    border-radius: 14px;
+    margin-bottom: 12px;
+  }
+  .periode h3 { font-size: 1.1rem; margin-bottom: 8px; }
+  .periode p { color: var(--texte-doux); font-size: 0.94rem; }
+
+  /* ============================================================
+     LE DERNIER APPEL
+     ============================================================ */
+  .final {
+    text-align: center;
+    padding: 50px 20px 70px;
+    background: radial-gradient(ellipse 70% 60% at 50% 100%, rgba(61,220,132,0.07), transparent);
+  }
+  .final h2 { font-size: clamp(1.6rem, 5vw, 2.3rem); font-weight: 900; margin-bottom: 10px; }
+  .final p { color: var(--texte-doux); margin-bottom: 26px; }
+
+  footer {
+    border-top: 1px solid var(--bordure);
+    text-align: center;
+    color: var(--texte-doux);
+    font-size: 0.8rem;
+    padding: 22px;
+  }
+</style>
+</head>
+<body>
+
+<!-- ============ LE HERO ============ -->
+<header class="hero">
+  <div class="contenu">
+    <div class="eyebrow">Pool de hockey NHL · Vraies stats en direct</div>
+    <h1>La Ligue<br><span class="neon">du Garage</span></h1>
+    <p class="accroche">Choisis tes vrais joueurs NHL. <strong>Leurs vraies performances font tes points</strong>, chaque soir de match. Pas besoin d'être un expert — juste d'aimer le hockey.</p>
+    <div class="boutons-hero">
+      <a class="cta principal" href="equipe.html">Bâtir mon équipe →</a>
+      <a class="cta secondaire" href="points.html">Voir mes points</a>
+    </div>
+    <p class="gratuit">100 % gratuit · Aucune carte de crédit · Prêt en 2 minutes</p>
+  </div>
+</header>
+
+<!-- ============ LE TICKER EN DIRECT ============ -->
+<div class="ticker" id="ticker">
+  <div class="ticker-interieur">
+    <div class="ticker-etiquette">Meneurs NHL</div>
+    <div class="piste">
+      <div class="defile-piste" id="defile"></div>
+    </div>
+  </div>
+</div>
+
+<!-- ============ LE SCOREBOARD ============ -->
+<div class="contenu">
+  <div class="scoreboard">
+    <div class="score">
+      <div class="gros">32</div>
+      <div class="petit">vraies équipes NHL au menu</div>
+    </div>
+    <div class="score">
+      <div class="gros">700+</div>
+      <div class="petit">vrais joueurs à repêcher</div>
+    </div>
+    <div class="score">
+      <div class="gros">0 $</div>
+      <div class="petit">c'est gratuit, point final</div>
+    </div>
+  </div>
+</div>
+
+<!-- ============ COMMENT ÇA MARCHE ============ -->
+<div class="contenu">
+  <h2 class="section-titre">Trois périodes, pas de prolongation</h2>
+  <p class="section-sous-titre">Le concept tient en un match.</p>
+  <div class="periodes">
+    <div class="periode">
+      <span class="badge-periode">1<sup>re</sup> PÉRIODE</span>
+      <h3>Bâtis ton équipe</h3>
+      <p>10 joueurs pigés dans les vrais alignements des 32 équipes. Au moins 1 gardien, max 3 joueurs par équipe — faut que ça reste juste.</p>
+    </div>
+    <div class="periode">
+      <span class="badge-periode">2<sup>e</sup> PÉRIODE</span>
+      <h3>Les vrais matchs comptent</h3>
+      <p>Ton centre marque un tour du chapeau un mardi soir? Tes points grimpent. Buts, passes, victoires de gardien : tout vient des stats officielles.</p>
+    </div>
+    <div class="periode">
+      <span class="badge-periode">3<sup>e</sup> PÉRIODE</span>
+      <h3>Grimpe au classement</h3>
+      <p>Compare ton total avec ta gang pis le reste de la ligue. Le classement public arrive bientôt — sois là avant tout le monde.</p>
+    </div>
+  </div>
+</div>
+
+<!-- ============ LE DERNIER APPEL ============ -->
+<div class="final">
+  <h2>Le vestiaire est ouvert.</h2>
+  <p>Ton équipe de rêve t'attend — pis elle joue pour vrai.</p>
+  <a class="cta principal" href="equipe.html">Je bâtis mon équipe →</a>
+</div>
+
+<footer>La Ligue du Garage · Les statistiques proviennent de l'API officielle de la NHL.</footer>
+
+<script>
+// ============================================================
+// LE TICKER EN DIRECT
+// On demande les 10 meilleurs marqueurs à ton relais. Si ça
+// répond, le bandeau apparaît pis défile. Si ça répond pas
+// (panne, réseau), le bandeau reste caché — la page reste
+// parfaite pareil. Jamais de bandeau brisé devant un visiteur.
+// ============================================================
+const RELAIS = "https://nhl-proxy.dompierrekevin70.workers.dev";
+
+async function chargerTicker() {
+  try {
+    const reponse = await fetch(RELAIS + "/v1/skater-stats-leaders/current?categories=points&limit=10");
+    if (!reponse.ok) return;
+    const donnees = await reponse.json();
+    const meneurs = donnees.points || [];
+    if (meneurs.length === 0) return;
+
+    // On bâtit la liste : "1. McDavid — 132 pts" etc.
+    let morceaux = "";
+    meneurs.forEach(function(j, i) {
+      morceaux += "<span>" + (i + 1) + ". <b>" + j.firstName.default + " " + j.lastName.default + "</b> (" + j.teamAbbrev + ") <span class='pts'>" + j.value + " pts</span></span>";
+    });
+
+    // Le truc du défilement infini : on met la liste DEUX fois
+    // bout à bout, pis l'animation glisse de 0 à -50 %. Quand la
+    // première copie sort de l'écran, la deuxième est rendue
+    // exactement où la première était — boucle invisible.
+    document.getElementById("defile").innerHTML = morceaux + morceaux;
+    document.getElementById("ticker").classList.add("actif");
+  } catch (e) {
+    // Silence radio : pas de ticker, pas de drame.
+  }
+}
+
+chargerTicker();
+</script>
+</body>
+</html>
