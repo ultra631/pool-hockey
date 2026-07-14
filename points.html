@@ -1,0 +1,247 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Mes points — Pool de hockey NHL</title>
+<style>
+  :root {
+    --fond: #0d1526;
+    --carte: #16213a;
+    --boite: #0a101f;
+    --texte: #d7e1f2;
+    --texte-doux: #8fa3c4;
+    --vert: #3ddc84;
+    --rouge: #ff6b7a;
+    --or: #ffd166;
+    --bordure: #24314f;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    background: var(--fond);
+    color: var(--texte);
+    font-family: "Segoe UI", system-ui, sans-serif;
+    line-height: 1.5;
+    padding: 30px 16px;
+  }
+  .contenu { max-width: 850px; margin: 0 auto; }
+  h1 { font-size: 1.7rem; margin-bottom: 6px; }
+  .intro { color: var(--texte-doux); margin-bottom: 20px; }
+
+  .total {
+    background: var(--carte);
+    border: 1px solid var(--bordure);
+    border-radius: 10px;
+    padding: 22px;
+    text-align: center;
+    margin-bottom: 20px;
+  }
+  .total .chiffre { font-size: 3rem; font-weight: 800; color: var(--vert); line-height: 1.1; }
+  .total .etiquette { color: var(--texte-doux); font-size: 0.95rem; }
+  .total .saison { color: var(--texte-doux); font-size: 0.85rem; margin-top: 4px; }
+
+  .carte {
+    background: var(--carte);
+    border: 1px solid var(--bordure);
+    border-radius: 10px;
+    padding: 20px;
+    margin-bottom: 20px;
+  }
+  .carte h2 { font-size: 1.1rem; margin-bottom: 12px; }
+
+  table { width: 100%; border-collapse: collapse; font-size: 0.92rem; }
+  th, td { padding: 8px 10px; text-align: left; border-bottom: 1px solid var(--bordure); }
+  th { color: var(--texte-doux); font-weight: 600; font-size: 0.8rem; text-transform: uppercase; letter-spacing: 0.5px; }
+  td.num, th.num { text-align: right; font-variant-numeric: tabular-nums; }
+  td.pts { color: var(--vert); font-weight: 700; }
+  tr:last-child td { border-bottom: none; }
+
+  .position {
+    font-size: 0.72rem;
+    font-weight: 700;
+    padding: 2px 8px;
+    border-radius: 12px;
+    background: #2a3554;
+    color: var(--texte-doux);
+    display: inline-block;
+    min-width: 34px;
+    text-align: center;
+  }
+  .position.G { background: rgba(255,209,102,0.15); color: var(--or); }
+
+  .message { color: var(--texte-doux); padding: 14px 0; }
+  .message.erreur { color: var(--rouge); }
+
+  .bareme { color: var(--texte-doux); font-size: 0.88rem; margin-top: 14px; }
+
+  a.lien { color: var(--vert); }
+  button {
+    padding: 10px 18px;
+    border-radius: 8px;
+    border: 1px solid var(--bordure);
+    background: var(--boite);
+    color: var(--texte);
+    font-size: 0.95rem;
+    cursor: pointer;
+    margin-top: 8px;
+  }
+</style>
+</head>
+<body>
+<div class="contenu">
+
+  <h1>🏒 Mes points</h1>
+  <p class="intro">Les points de ton équipe, calculés avec les <strong>vraies stats NHL</strong> qui arrivent en direct via ton relais.</p>
+
+  <div class="total">
+    <div class="chiffre" id="grand-total">…</div>
+    <div class="etiquette">points au total</div>
+    <div class="saison" id="etiquette-saison"></div>
+  </div>
+
+  <div class="carte">
+    <h2>Le détail par joueur</h2>
+    <div id="zone-tableau">
+      <p class="message">Chargement des stats de tes joueurs…</p>
+    </div>
+    <p class="bareme"><strong>Barème :</strong> patineurs → 1 pt par but + 1 pt par passe. Gardiens → 2 pts par victoire + 3 pts par blanchissage.</p>
+    <button onclick="location.reload()">🔄 Rafraîchir les stats</button>
+  </div>
+
+</div>
+
+<script>
+// ============================================================
+// L'ADRESSE DE TON RELAIS — toujours la même.
+// ============================================================
+const RELAIS = "https://nhl-proxy.dompierrekevin70.workers.dev";
+
+// LE BARÈME DU POOL — tout est ici, facile à ajuster plus tard.
+const PTS_PAR_BUT = 1;
+const PTS_PAR_PASSE = 1;
+const PTS_PAR_VICTOIRE = 2;      // gardiens
+const PTS_PAR_BLANCHISSAGE = 3;  // gardiens
+
+// ------------------------------------------------------------
+// 1. CHARGER L'ÉQUIPE SAUVEGARDÉE (celle de equipe.html)
+// ------------------------------------------------------------
+function chargerEquipe() {
+  const brut = localStorage.getItem("pool-mon-equipe");
+  if (!brut) return [];
+  try { return JSON.parse(brut); } catch (e) { return []; }
+}
+
+// ------------------------------------------------------------
+// 2. ALLER CHERCHER LES STATS D'UN JOUEUR VIA LE RELAIS
+// La route /v1/player/ID/landing donne la fiche complète du
+// joueur, incluant ses stats de la saison en cours (ou la
+// dernière saison complétée, comme en ce moment en été).
+// ------------------------------------------------------------
+async function chercherStats(joueur) {
+  const reponse = await fetch(RELAIS + "/v1/player/" + joueur.id + "/landing");
+  if (!reponse.ok) throw new Error("réponse " + reponse.status);
+  const fiche = await reponse.json();
+
+  // Les stats de la saison sont dans featuredStats.regularSeason.subSeason.
+  const saison = (fiche.featuredStats && fiche.featuredStats.regularSeason && fiche.featuredStats.regularSeason.subSeason) || {};
+  const codeSaison = fiche.featuredStats ? fiche.featuredStats.season : null;
+
+  if (joueur.position === "G") {
+    // Gardien : victoires et blanchissages.
+    const victoires = saison.wins || 0;
+    const blanchissages = saison.shutouts || 0;
+    return {
+      matchs: saison.gamesPlayed || 0,
+      detail: victoires + " V, " + blanchissages + " BL",
+      points: victoires * PTS_PAR_VICTOIRE + blanchissages * PTS_PAR_BLANCHISSAGE,
+      codeSaison: codeSaison
+    };
+  } else {
+    // Patineur : buts et passes.
+    const buts = saison.goals || 0;
+    const passes = saison.assists || 0;
+    return {
+      matchs: saison.gamesPlayed || 0,
+      detail: buts + " B, " + passes + " P",
+      points: buts * PTS_PAR_BUT + passes * PTS_PAR_PASSE,
+      codeSaison: codeSaison
+    };
+  }
+}
+
+// ------------------------------------------------------------
+// 3. TOUT ORCHESTRER : charger l'équipe, chercher les stats
+//    de chaque joueur, afficher le tableau trié par points.
+// ------------------------------------------------------------
+async function calculerLesPoints() {
+  const equipe = chargerEquipe();
+  const zone = document.getElementById("zone-tableau");
+  const grandTotal = document.getElementById("grand-total");
+
+  if (equipe.length === 0) {
+    grandTotal.textContent = "—";
+    zone.innerHTML = '<p class="message erreur">Aucune équipe sauvegardée! Va d\'abord bâtir ton équipe sur <a class="lien" href="equipe.html">la page Mon équipe</a>, sauvegarde-la, pis reviens ici.</p>';
+    return;
+  }
+
+  // On demande les stats de tous les joueurs EN MÊME TEMPS
+  // (Promise.all) au lieu d'un après l'autre — 10 fois plus vite.
+  const resultats = await Promise.all(equipe.map(async function(joueur) {
+    try {
+      const stats = await chercherStats(joueur);
+      return { joueur: joueur, stats: stats, erreur: null };
+    } catch (e) {
+      return { joueur: joueur, stats: null, erreur: e.message };
+    }
+  }));
+
+  // Trier du plus productif au moins productif.
+  resultats.sort(function(a, b) {
+    return (b.stats ? b.stats.points : -1) - (a.stats ? a.stats.points : -1);
+  });
+
+  // Bâtir le tableau.
+  let total = 0;
+  let codeSaison = null;
+  let lignes = "";
+  resultats.forEach(function(r) {
+    if (r.stats) {
+      total += r.stats.points;
+      if (!codeSaison && r.stats.codeSaison) codeSaison = r.stats.codeSaison;
+      lignes +=
+        "<tr>" +
+        '<td><span class="position ' + r.joueur.position + '">' + r.joueur.position + "</span></td>" +
+        "<td>" + r.joueur.nom + ' <small style="color:var(--texte-doux)">(' + r.joueur.equipe + ")</small></td>" +
+        '<td class="num">' + r.stats.matchs + "</td>" +
+        '<td class="num">' + r.stats.detail + "</td>" +
+        '<td class="num pts">' + r.stats.points + "</td>" +
+        "</tr>";
+    } else {
+      lignes +=
+        "<tr>" +
+        '<td><span class="position">' + r.joueur.position + "</span></td>" +
+        "<td>" + r.joueur.nom + "</td>" +
+        '<td class="num" colspan="3" style="color:var(--rouge)">stats introuvables (' + r.erreur + ")</td>" +
+        "</tr>";
+    }
+  });
+
+  zone.innerHTML =
+    "<table>" +
+    "<thead><tr><th>Pos</th><th>Joueur</th><th class='num'>MJ</th><th class='num'>Stats</th><th class='num'>Pts pool</th></tr></thead>" +
+    "<tbody>" + lignes + "</tbody></table>";
+
+  grandTotal.textContent = total;
+
+  // Afficher la saison (ex. 20252026 devient "Saison 2025-2026").
+  if (codeSaison) {
+    const texte = String(codeSaison);
+    document.getElementById("etiquette-saison").textContent =
+      "Saison " + texte.slice(0, 4) + "-" + texte.slice(4);
+  }
+}
+
+calculerLesPoints();
+</script>
+</body>
+</html>
