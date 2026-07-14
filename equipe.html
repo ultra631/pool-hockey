@@ -1,0 +1,392 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Mon équipe — Pool de hockey NHL</title>
+<style>
+  :root {
+    --fond: #0d1526;
+    --carte: #16213a;
+    --boite: #0a101f;
+    --texte: #d7e1f2;
+    --texte-doux: #8fa3c4;
+    --vert: #3ddc84;
+    --rouge: #ff6b7a;
+    --or: #ffd166;
+    --bordure: #24314f;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    background: var(--fond);
+    color: var(--texte);
+    font-family: "Segoe UI", system-ui, sans-serif;
+    line-height: 1.5;
+    padding: 30px 16px;
+  }
+  .contenu { max-width: 1000px; margin: 0 auto; }
+  h1 { font-size: 1.7rem; margin-bottom: 6px; }
+  .intro { color: var(--texte-doux); margin-bottom: 24px; }
+
+  /* Disposition en deux colonnes : à gauche on magasine, à droite mon équipe */
+  .colonnes { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
+  @media (max-width: 750px) { .colonnes { grid-template-columns: 1fr; } }
+
+  .carte {
+    background: var(--carte);
+    border: 1px solid var(--bordure);
+    border-radius: 10px;
+    padding: 20px;
+  }
+  .carte h2 { font-size: 1.15rem; margin-bottom: 12px; }
+
+  select {
+    width: 100%;
+    padding: 10px;
+    border-radius: 8px;
+    border: 1px solid var(--bordure);
+    background: var(--boite);
+    color: var(--texte);
+    font-size: 1rem;
+    margin-bottom: 14px;
+  }
+
+  .message { color: var(--texte-doux); font-size: 0.95rem; padding: 10px 0; }
+  .message.erreur { color: var(--rouge); }
+
+  .liste { max-height: 480px; overflow-y: auto; }
+
+  .joueur {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+    padding: 8px 12px;
+    border: 1px solid var(--bordure);
+    border-radius: 8px;
+    margin-bottom: 6px;
+    background: var(--boite);
+    cursor: pointer;
+    transition: border-color 0.15s;
+  }
+  .joueur:hover { border-color: var(--texte-doux); }
+  .joueur.choisi { border-color: var(--vert); }
+  .joueur .nom { flex: 1; }
+  .position {
+    font-size: 0.72rem;
+    font-weight: 700;
+    padding: 2px 8px;
+    border-radius: 12px;
+    background: #2a3554;
+    color: var(--texte-doux);
+    min-width: 34px;
+    text-align: center;
+  }
+  .position.G { background: rgba(255,209,102,0.15); color: var(--or); }
+  .action { font-size: 1.1rem; width: 24px; text-align: center; }
+  .action.plus { color: var(--vert); }
+  .action.moins { color: var(--rouge); }
+
+  .compteur {
+    display: flex;
+    gap: 14px;
+    flex-wrap: wrap;
+    margin-bottom: 12px;
+    font-size: 0.9rem;
+    color: var(--texte-doux);
+  }
+  .compteur strong { color: var(--texte); }
+  .compteur .ok { color: var(--vert); }
+
+  .vide {
+    border: 1px dashed var(--bordure);
+    border-radius: 8px;
+    padding: 24px;
+    text-align: center;
+    color: var(--texte-doux);
+  }
+
+  .boutons { display: flex; gap: 10px; margin-top: 14px; flex-wrap: wrap; }
+  button {
+    padding: 10px 18px;
+    border-radius: 8px;
+    border: 1px solid var(--bordure);
+    background: var(--boite);
+    color: var(--texte);
+    font-size: 0.95rem;
+    cursor: pointer;
+  }
+  button.principal { background: var(--vert); border-color: var(--vert); color: #06210f; font-weight: 700; }
+  button:disabled { opacity: 0.45; cursor: not-allowed; }
+
+  .toast {
+    position: fixed;
+    bottom: 20px;
+    left: 50%;
+    transform: translateX(-50%);
+    background: var(--vert);
+    color: #06210f;
+    font-weight: 700;
+    padding: 10px 22px;
+    border-radius: 20px;
+    opacity: 0;
+    transition: opacity 0.3s;
+    pointer-events: none;
+  }
+  .toast.visible { opacity: 1; }
+</style>
+</head>
+<body>
+<div class="contenu">
+
+  <h1>🏒 Bâtir mon équipe</h1>
+  <p class="intro">Choisis une équipe NHL, clique sur des joueurs pour les ajouter. Règles : <strong>10 joueurs</strong>, dont <strong>au moins 1 gardien</strong>, maximum <strong>3 joueurs par équipe NHL</strong>. Ton équipe se sauvegarde toute seule dans ton navigateur.</p>
+
+  <div class="colonnes">
+
+    <!-- Colonne gauche : magasiner les joueurs -->
+    <div class="carte">
+      <h2>Les joueurs NHL</h2>
+      <select id="choix-equipe">
+        <option value="">— Choisis une équipe NHL —</option>
+      </select>
+      <div class="liste" id="liste-joueurs">
+        <p class="message">Les alignements arrivent en direct de la NHL via ton relais.</p>
+      </div>
+    </div>
+
+    <!-- Colonne droite : mon équipe -->
+    <div class="carte">
+      <h2>Mon équipe</h2>
+      <div class="compteur">
+        <span>Joueurs : <strong id="compte-joueurs">0</strong>/10</span>
+        <span>Gardiens : <strong id="compte-gardiens">0</strong> (min. 1)</span>
+        <span id="statut-equipe"></span>
+      </div>
+      <div class="liste" id="mon-equipe">
+        <div class="vide">Ton équipe est vide.<br>Clique sur des joueurs à gauche pour commencer!</div>
+      </div>
+      <div class="boutons">
+        <button class="principal" id="bouton-sauvegarder">Sauvegarder</button>
+        <button id="bouton-vider">Vider l'équipe</button>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<div class="toast" id="toast">Équipe sauvegardée!</div>
+
+<script>
+// ============================================================
+// L'ADRESSE DE TON RELAIS — la même que la page de test.
+// ============================================================
+const RELAIS = "https://nhl-proxy.dompierrekevin70.workers.dev";
+
+// Les règles du pool (faciles à changer plus tard, elles sont
+// toutes ici au même endroit).
+const MAX_JOUEURS = 10;
+const MIN_GARDIENS = 1;
+const MAX_PAR_EQUIPE_NHL = 3;
+
+// Les 32 équipes NHL : le code à 3 lettres sert à demander
+// l'alignement au relais (/v1/roster/MTL/current).
+const EQUIPES_NHL = [
+  ["ANA", "Anaheim Ducks"], ["BOS", "Boston Bruins"], ["BUF", "Buffalo Sabres"],
+  ["CAR", "Carolina Hurricanes"], ["CBJ", "Columbus Blue Jackets"], ["CGY", "Calgary Flames"],
+  ["CHI", "Chicago Blackhawks"], ["COL", "Colorado Avalanche"], ["DAL", "Dallas Stars"],
+  ["DET", "Detroit Red Wings"], ["EDM", "Edmonton Oilers"], ["FLA", "Florida Panthers"],
+  ["LAK", "Los Angeles Kings"], ["MIN", "Minnesota Wild"], ["MTL", "Canadiens de Montréal"],
+  ["NJD", "New Jersey Devils"], ["NSH", "Nashville Predators"], ["NYI", "New York Islanders"],
+  ["NYR", "New York Rangers"], ["OTT", "Ottawa Senators"], ["PHI", "Philadelphia Flyers"],
+  ["PIT", "Pittsburgh Penguins"], ["SEA", "Seattle Kraken"], ["SJS", "San Jose Sharks"],
+  ["STL", "St. Louis Blues"], ["TBL", "Tampa Bay Lightning"], ["TOR", "Toronto Maple Leafs"],
+  ["UTA", "Utah Mammoth"], ["VAN", "Vancouver Canucks"], ["VGK", "Vegas Golden Knights"],
+  ["WPG", "Winnipeg Jets"], ["WSH", "Washington Capitals"]
+];
+
+// Mon équipe : une liste de joueurs {id, nom, position, equipe}.
+// L'id vient de la NHL — il est unique pour chaque joueur, c'est
+// lui qui va nous permettre d'aller chercher ses stats plus tard.
+let monEquipe = [];
+
+// Garde en mémoire l'alignement affiché à gauche en ce moment.
+let alignementAffiche = [];
+
+// ------------------------------------------------------------
+// SAUVEGARDE : le navigateur garde l'équipe même si tu fermes
+// l'onglet (comme les slots de sauvegarde de ton jeu arcade).
+// ------------------------------------------------------------
+function sauvegarder() {
+  localStorage.setItem("pool-mon-equipe", JSON.stringify(monEquipe));
+  const toast = document.getElementById("toast");
+  toast.classList.add("visible");
+  setTimeout(function() { toast.classList.remove("visible"); }, 1800);
+}
+
+function charger() {
+  const brut = localStorage.getItem("pool-mon-equipe");
+  if (brut) {
+    try { monEquipe = JSON.parse(brut); } catch (e) { monEquipe = []; }
+  }
+}
+
+// ------------------------------------------------------------
+// LE MENU DES 32 ÉQUIPES
+// ------------------------------------------------------------
+function remplirMenu() {
+  const menu = document.getElementById("choix-equipe");
+  EQUIPES_NHL.forEach(function(equipe) {
+    const option = document.createElement("option");
+    option.value = equipe[0];
+    option.textContent = equipe[1];
+    menu.appendChild(option);
+  });
+  menu.addEventListener("change", function() {
+    if (menu.value) chargerAlignement(menu.value);
+  });
+}
+
+// ------------------------------------------------------------
+// CHARGER UN ALIGNEMENT VIA LE RELAIS
+// ------------------------------------------------------------
+async function chargerAlignement(code) {
+  const zone = document.getElementById("liste-joueurs");
+  zone.innerHTML = '<p class="message">Chargement de l\'alignement…</p>';
+  try {
+    const reponse = await fetch(RELAIS + "/v1/roster/" + code + "/current");
+    if (!reponse.ok) throw new Error("Le relais a répondu " + reponse.status);
+    const donnees = await reponse.json();
+
+    // La NHL sépare l'alignement en 3 listes : on les fusionne
+    // en gardant la position de chacun (C, LW, RW, D, G).
+    alignementAffiche = [];
+    (donnees.forwards || []).forEach(function(j) { ajouterAuTampon(j, code); });
+    (donnees.defensemen || []).forEach(function(j) { ajouterAuTampon(j, code); });
+    (donnees.goalies || []).forEach(function(j) { ajouterAuTampon(j, code, "G"); });
+
+    afficherAlignement();
+  } catch (erreur) {
+    zone.innerHTML = '<p class="message erreur">Impossible de charger cet alignement (' + erreur.message + '). Réessaie, ou envoie-moi une capture.</p>';
+  }
+}
+
+function ajouterAuTampon(j, code, positionForcee) {
+  alignementAffiche.push({
+    id: j.id,
+    nom: j.firstName.default + " " + j.lastName.default,
+    position: positionForcee || j.positionCode || "?",
+    equipe: code
+  });
+}
+
+// ------------------------------------------------------------
+// AFFICHAGE DE LA COLONNE GAUCHE (l'alignement NHL)
+// ------------------------------------------------------------
+function afficherAlignement() {
+  const zone = document.getElementById("liste-joueurs");
+  zone.innerHTML = "";
+  alignementAffiche.forEach(function(joueur) {
+    const dejaChoisi = monEquipe.some(function(j) { return j.id === joueur.id; });
+    const ligne = document.createElement("div");
+    ligne.className = "joueur" + (dejaChoisi ? " choisi" : "");
+    ligne.innerHTML =
+      '<span class="position ' + joueur.position + '">' + joueur.position + '</span>' +
+      '<span class="nom">' + joueur.nom + '</span>' +
+      '<span class="action ' + (dejaChoisi ? "moins" : "plus") + '">' + (dejaChoisi ? "−" : "+") + '</span>';
+    ligne.addEventListener("click", function() { basculerJoueur(joueur); });
+    zone.appendChild(ligne);
+  });
+}
+
+// ------------------------------------------------------------
+// AJOUTER / RETIRER UN JOUEUR (avec les règles du pool)
+// ------------------------------------------------------------
+function basculerJoueur(joueur) {
+  const index = monEquipe.findIndex(function(j) { return j.id === joueur.id; });
+
+  if (index >= 0) {
+    // Déjà dans l'équipe → on le retire.
+    monEquipe.splice(index, 1);
+  } else {
+    // Règle 1 : maximum de joueurs.
+    if (monEquipe.length >= MAX_JOUEURS) {
+      alert("Ton équipe est pleine (" + MAX_JOUEURS + " joueurs). Retire quelqu'un avant d'en ajouter un autre.");
+      return;
+    }
+    // Règle 2 : maximum par équipe NHL, pour forcer la variété.
+    const memeEquipe = monEquipe.filter(function(j) { return j.equipe === joueur.equipe; }).length;
+    if (memeEquipe >= MAX_PAR_EQUIPE_NHL) {
+      alert("Maximum " + MAX_PAR_EQUIPE_NHL + " joueurs de la même équipe NHL. Va magasiner ailleurs! 😄");
+      return;
+    }
+    monEquipe.push(joueur);
+  }
+
+  afficherAlignement();
+  afficherMonEquipe();
+}
+
+// ------------------------------------------------------------
+// AFFICHAGE DE LA COLONNE DROITE (mon équipe)
+// ------------------------------------------------------------
+function afficherMonEquipe() {
+  const zone = document.getElementById("mon-equipe");
+  const gardiens = monEquipe.filter(function(j) { return j.position === "G"; }).length;
+
+  document.getElementById("compte-joueurs").textContent = monEquipe.length;
+  document.getElementById("compte-gardiens").textContent = gardiens;
+
+  // Le statut dit si l'équipe respecte toutes les règles.
+  const statut = document.getElementById("statut-equipe");
+  if (monEquipe.length === MAX_JOUEURS && gardiens >= MIN_GARDIENS) {
+    statut.innerHTML = '<span class="ok">✓ Équipe complète!</span>';
+  } else if (monEquipe.length === MAX_JOUEURS && gardiens < MIN_GARDIENS) {
+    statut.textContent = "Il te manque un gardien!";
+  } else {
+    statut.textContent = "";
+  }
+
+  if (monEquipe.length === 0) {
+    zone.innerHTML = '<div class="vide">Ton équipe est vide.<br>Clique sur des joueurs à gauche pour commencer!</div>';
+    return;
+  }
+
+  zone.innerHTML = "";
+  // On affiche les gardiens en premier, ensuite le reste.
+  const tries = monEquipe.slice().sort(function(a, b) {
+    return (a.position === "G" ? 0 : 1) - (b.position === "G" ? 0 : 1);
+  });
+  tries.forEach(function(joueur) {
+    const ligne = document.createElement("div");
+    ligne.className = "joueur";
+    ligne.innerHTML =
+      '<span class="position ' + joueur.position + '">' + joueur.position + '</span>' +
+      '<span class="nom">' + joueur.nom + ' <small style="color:var(--texte-doux)">(' + joueur.equipe + ')</small></span>' +
+      '<span class="action moins">−</span>';
+    ligne.addEventListener("click", function() { basculerJoueur(joueur); });
+    zone.appendChild(ligne);
+  });
+}
+
+// ------------------------------------------------------------
+// LES BOUTONS
+// ------------------------------------------------------------
+document.getElementById("bouton-sauvegarder").addEventListener("click", sauvegarder);
+document.getElementById("bouton-vider").addEventListener("click", function() {
+  if (confirm("Vider ton équipe au complet? (La sauvegarde sera écrasée seulement si tu re-sauvegardes.)")) {
+    monEquipe = [];
+    afficherAlignement();
+    afficherMonEquipe();
+  }
+});
+
+// ------------------------------------------------------------
+// DÉMARRAGE : on charge la sauvegarde pis on remplit le menu.
+// ------------------------------------------------------------
+charger();
+remplirMenu();
+afficherMonEquipe();
+</script>
+</body>
+</html>
